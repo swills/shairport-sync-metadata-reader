@@ -256,7 +256,7 @@ int main(int argc, char *argv[]) {
             break;
           case 'asar':
             printf("Artist: \"%s\".\n",payload);
-            textfile = fopen(ffile,"a+");
+            textfile = fopen(ffile,"w+");
             if (textfile) {
               fprintf(textfile, "%s", payload);
               fclose(textfile);
