@@ -32,6 +32,7 @@ THE SOFTWARE.
 #include <stdint.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 
 
 // From Stack Overflow, with thanks:
@@ -132,9 +133,34 @@ int base64_decode(const char *data,
     return 0;
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
   fd_set rfds;
   int retval;
+  FILE* imagefile;
+  FILE* textfile;
+  int errflg=0, c=0, errno=0;
+  char *ofile = "/tmp/shairport.jpg";
+  char *ffile = "/tmp/shairport.txt";
+  extern char *optarg;
+
+  while ((c = getopt(argc, argv, ":f:o:")) != -1) {
+    switch(c) {
+    case 'f':
+      ffile = optarg;
+      break;
+    case 'o':
+      ofile = optarg;
+      break;
+    case '?':
+      fprintf(stderr, "Unrecognized option: -%s\n", optarg);
+      errflg++;
+    }
+  }
+
+  if (errflg) {
+    fprintf(stderr, "usage: %s [-f text_output_file] [-o image_output_file]\n", argv[0]);
+    exit(2);
+  }
   
   initialise_decoding_table();
   
@@ -147,8 +173,8 @@ int main(void) {
       if (ret==3) {
         // now, think about processing the tag. 
         // basically, we need to get hold of the base-64 data, if any
-        size_t outputlength=0;
-        char payload[32769];
+        size_t outputlength=1048576;
+        unsigned char payload[outputlength];
         if (length>0) {
           // get the next line, which should be a data tag
           char datatagstart[64],datatagend[64];
@@ -176,6 +202,24 @@ int main(void) {
                     printf("Failed to decode it.\n");
                   }
                 }
+		else {
+    	          imagefile = fopen(ofile,"w+");
+		  base64_decode(b64buf,b64size,payload,&outputlength);
+                  if (outputlength == 0) {
+                    printf("Failed to decode it.\n");
+                  }
+		  else {
+                    if (imagefile) {
+                      // fwrite(b64buf, b64size, 1, imagefile);
+                      fwrite(payload, outputlength, 1, imagefile);
+        	      fclose(imagefile);
+        	      printf("Wrote image.\n");
+        	    }
+    		    else {
+    		      printf("Failed to open image file: %u\n", errno);
+    		    }
+		  }
+    		}
               }
               free(b64buf);
             } else {
@@ -212,6 +256,14 @@ int main(void) {
             break;
           case 'asar':
             printf("Artist: \"%s\".\n",payload);
+            textfile = fopen(ffile,"a+");
+            if (textfile) {
+              fprintf(textfile, "%s", payload);
+              fclose(textfile);
+            }
+            else {
+              printf("Failed to open text file: %u\n", errno);
+            }
             break;
           case 'ascm':
             printf("Comment: \"%s\".\n",payload);
@@ -221,6 +273,14 @@ int main(void) {
             break;
           case 'minm':
             printf("Title: \"%s\".\n",payload);
+            textfile = fopen(ffile,"a+");
+            if (textfile) {
+              fprintf(textfile, " - %s\n", payload);
+              fclose(textfile);
+            }
+            else {
+              printf("Failed to open text file: %u\n", errno);
+            }
             break;
           case 'ascp':
             printf("Composer: \"%s\".\n",payload);
